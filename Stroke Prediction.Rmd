@@ -1,0 +1,677 @@
+---
+title: "Predicting Stroke Risk Using Logistic Regression and Decision Tree Models"
+author: "Gabrielle Felicia Ariyanto"
+date: '2022-07-11'
+output: html_document
+---
+
+##### **EXPLORATORY DATA ANALYSIS**
+
+```{r}
+#Load packages
+library(ROCR)
+library(rpart)
+library(rpart.plot)
+library(ggplot2)
+library(ggpubr)
+library(Hmisc)
+library(dplyr)
+library(ROCit)
+library(caret)
+```
+```{r}
+#load data
+strokeData <- read.csv("./StrokeData.csv")
+head(strokeData)
+```
+
+See the dimension of the data
+```{r}
+dim(strokeData)
+```
+The dataset has 5110 instances and 12 attributes.
+
+```{r}
+str(strokeData)
+```
+
+Each attribute is further described below: 
+
+1. id               : unique identifier -> Data type: Integer 
+2. gender           : "Male", "Female" or "Other" -> Data type: Character 
+3. age              : age of the patient -> Data type: Numeric
+4. hypertension     : 0 if the patient doesn't have hypertension, 1 if the patient has hypertension -> Data type: Integer
+5. heart_disease    : 0 if the patient doesn't have any heart diseases, 1 if the patient has a heart disease -> Data type: Integer
+6. ever_married     : "No" or "Yes" -> Data type: Character
+7. work_type        : "children", "Govt_job", "Never_worked", "Private" or "Self-employed" -> Data type: Character
+8. Residence_type   : "Rural" or "Urban" -> Data type: Character
+9. avg_glucose_level: average glucose level in blood -> Data type: Numeric
+10. bmi             : body mass index -> Data type: character
+11. smoking_status  : "formerly smoked", "never smoked", "smokes" or "Unknown"* -> Data type: character
+12. stroke          : 1 if the patient had a stroke or 0 if not -> Data type: integer
+
+*Note: "Unknown" in smoking_status means that the information is unavailable for this patient
+
+
+```{r}
+summary(strokeData)
+```
+
+According to the output above:
+
+1.The stroke mean is 0.05, implying that just 5% of people have a stroke.
+
+2.The hypertension mean is 0.097, implying that there are 9.7% of people have a hypertension. 
+
+3.The heart_disease mean is 0.054, implying that there are 5.4% of people have a heart_disease.
+
+4.The oldest age in this data is 82, while the variable's average age is 43.2. 
+
+5.The average glucose level in this dataset ranges from 55.12 to 271.74. In this data, the average of avg_glucose_level variable is 106.15.
+
+6.Some character data type columns must be transformed to factors or integers. 
+
+Then I see the unique value for each attribute here.
+```{r}
+sapply(strokeData, function(x)length(unique(x)))
+```
+We need to transform the data type of variables on the attributes of `gender`, `hypertension`,`heart_disease`, `ever_married`, `work_type`, `Residence_type`, `smoking_status`, and `stroke` to be a factor data type based on the output above since these attributes are categorical variables.
+
+So I changed the data type of those attribute here, as well as bmi's data type from character to numeric, because bmi is supposed to hold numbers rather than characters.
+```{r}
+#change the stroke variable data type from integer to factor and assign a value of 1 to Yes and a value of 0 to No
+strokeData$stroke <- as.factor(strokeData$stroke)
+levels(strokeData$stroke)[levels(strokeData$stroke)== 1] <- "Yes"
+levels(strokeData$stroke)[levels(strokeData$stroke)== 0] <- "No"
+
+#change the gender variable data type from character to factor
+strokeData$gender <- as.factor(strokeData$gender)
+
+#change the hypertension variable data type from integer to factor and assign a value of 1 to Yes and a value of 0 to No
+strokeData$hypertension <- as.factor(strokeData$hypertension)
+levels(strokeData$hypertension)[levels(strokeData$hypertension)== 1] <- "Yes"
+levels(strokeData$hypertension)[levels(strokeData$hypertension)== 0] <- "No"
+
+#change the heart_disease variable data type from integer to factor and assign a value of 1 to Yes and a value of 0 to No
+strokeData$heart_disease <- as.factor(strokeData$heart_disease)
+levels(strokeData$heart_disease)[levels(strokeData$heart_disease)== 1] <- "Yes"
+levels(strokeData$heart_disease)[levels(strokeData$heart_disease)== 0] <- "No"
+
+#change the ever_married variable data type from character to factor
+strokeData$ever_married <- as.factor(strokeData$ever_married)
+
+#change the work_type variable data type from character to factor
+strokeData$work_type <- as.factor(strokeData$work_type)
+
+#change the Residence_type variable data type from character to factor
+strokeData$Residence_type <- as.factor(strokeData$Residence_type)
+
+#change the smoking_status variable data type from character to factor
+strokeData$smoking_status <- as.factor(strokeData$smoking_status)
+
+#change the bmi variable data type from character to numeric
+strokeData$bmi <- as.numeric(strokeData$bmi)
+```
+
+Next I check to see whether the data type of the variable i aim to change has changed.
+```{r}
+#check whether the variables data type has changed or not
+sapply(strokeData, class)
+
+```
+
+The data type of the variable we intend to modify has already changed, as we can see above.
+
+Then I proceed to examine the description for each variable in the dataset.
+```{r}
+describe(strokeData)
+```
+
+According to the output above:
+
+1. The variable 'gender' has three levels: Female, Male, and Other. There are 2994 female genders, 2115 male genders, and 1 other gender in this data set.
+2. The variable 'hypertension' has two levels: Yes and No. There are 4612 individuals in this dataset who do not have hypertension and 498 people who do.
+3. The variable 'heart_disease' has two levels: Yes and No. There are 4834 individuals in this dataset who do not have heart disease and 276 people who do.
+4. The variable 'ever_married' has two levels: Yes and No. This dataset contains 1757 people who have never married and 3353 persons who have.
+5.  The variable 'work_type' has five levels: children, Govt_job, Never_worked, Private, and Self-employed. There are 687 people in this dataset who are still children, 657 people who work in the government sector, 22 people who have never worked, 2925 people who work privately, and 819 people who work for themselves (self employed).
+6. The variable 'Residence_type' has two levels: Rural and Urban. There are 2514 persons in this dataset who are residents of the rural type and 2596 people who are residents of the urban type.
+7. The average glucose level in this dataset ranges from 55.12 to 271.74. In this data, the average of avg_glucose_level variable is 106.15.
+8. The bmi attribute in this dataset ranges from 10.30 to 97.60. In this data, the average of bmi variable is 28.89.
+9. The variable 'smoking_status' has four levels: formely smoked, never smoked, smokes, and Unknown. This dataset contains 885 people who formerly smoked, 1892 people who never smoked, 789 people who now smoke, and 1544 people whose smoking status is unknown.
+10. The dataset contains 249 persons who have had a stroke and 4861 people who have not had a stroke.
+
+***Exploring Categorical Variables***
+
+```{r}
+plot(strokeData$stroke, col = "darkgoldenrod3",main = "Stroke Distribution")
+```
+
+According to the output above, there are more individuals who do not suffer from stroke than those who do.
+
+```{r}
+ggplot(strokeData, aes(x = gender, fill = stroke)) + geom_bar(position = "dodge")+ scale_fill_manual(values=c("#FFCC66", "#CC0000")) + ggtitle("Stroke Distribution by Gender")
+
+```
+
+There are more female than male in the data set. More female suffer from stroke than male.
+
+```{r}
+ggplot(strokeData, aes(x = Residence_type, fill = stroke)) + geom_bar(position = "dodge")+ scale_fill_manual(values=c("#FFCC99", "#FF9933")) + ggtitle("Stroke Distribution by Residence Type")
+```
+
+From the output above, there is no much difference in each percentage having a stroke or not based on the type of residence
+
+```{r}
+ggplot(strokeData, aes(x = ever_married, fill = stroke)) + geom_bar(position = "dodge")+ scale_fill_manual(values=c("#CCCCFF", "#CC99FF")) + ggtitle("Stroke Distribution by Married Status")
+```
+
+In the data set, there are more ever-married persons than never-married people. People who have been married are more likely to have a stroke than those who have not.
+
+```{r}
+ggplot(strokeData, aes(x = hypertension, fill = stroke)) + geom_bar(position = "dodge")+ scale_fill_manual(values=c("#66CCCC", "#336666")) + ggtitle("Stroke Distribution by Hypertension")
+```
+
+According to the plot above, patients with hypertension suffer fewer strokes than those who do not.
+
+```{r}
+ggplot(strokeData, aes(x = heart_disease, fill = stroke)) + geom_bar(position = "dodge")+ scale_fill_manual(values=c("#FF9999", "#990033")) + ggtitle("Stroke Distribution by Heart Disease")
+```
+
+Patients with heart disease suffered fewer strokes than those who did not.
+
+```{r}
+mosaicplot(strokeData$stroke~strokeData$work_type,las=1,off=10,xlab="Stroke",ylab="Work Type",main="Stroke VS Work_Type",color=colors()[145:150])
+```
+
+The majority of patients with stroke work in the government sector, private, or are self-employed.
+
+```{r}
+mosaicplot(strokeData$stroke~strokeData$smoking_status,las=1,off=5,xlab="Stroke",ylab="Smoking Status",main="Stroke VS Smoking_status",color=colors()[20:30])
+```
+
+Patients who formely smoked or  who have never smoked had higher stroke occurrences than active smokers. However, we must keep in mind that a significant chunk of the data, represented by the unknown category, lacks a clear record of the patient's smoking status.
+
+***Exploring Numerical Variables***
+
+```{r}
+ggplot(strokeData, aes(x = age , fill = stroke)) + geom_histogram(bindwidth = 30) + scale_fill_manual(values=c("#9ebcda", "#8856a7"))  + ggtitle("Stroke Distribution by Age")
+```
+
+According to the plot above, the older a person is, the more probable that person is to suffer a stroke. When a person is around 50 or older, the chance of suffering a stroke increases considerably.
+
+```{r}
+ggplot(strokeData, aes(x = avg_glucose_level , fill = stroke)) + geom_histogram(bindwidth = 30) + scale_fill_manual(values=c("#feb24c", "#f03b20")) + ggtitle("Stroke Distribution by Average Glucose Level")
+```
+
+The plot above shows that there is no apparent relationship between avg glucose level and stroke risk. However, as we all know, when a person's blood sugar level is too low, they may acquire hypoglycemia; on the other side, when their blood sugar level is too high, they may acquire hyperglycemia or diabetes. This does result in a stroke and this might be a very plausible explanation for the above plot.
+
+```{r}
+ggplot(strokeData, aes(x = bmi , fill = stroke)) + geom_histogram(bindwidth = 30) + scale_fill_manual(values=c("#c994c7", "#dd1c77")) + ggtitle("Stroke Distribution by Body Mass Index")
+```
+
+According to the results above, people with a BMI of 20 to 40 are at risk of stroke. As a result, I can conclude that having a higher BMI does not raise the chance of having a stroke.
+
+***Checking Data Anomalies***
+```{r}
+AgeBoxplot <- boxplot(strokeData$age,main = "Age Boxplot")
+paste(length(AgeBoxplot$out))
+```
+
+There are no outliers detected by boxplot in the age variable.
+
+```{r}
+glucoseBoxplot <- boxplot(strokeData$avg_glucose_level, main = 'Avg Glucose Level Boxplot')
+paste(length(glucoseBoxplot$out))
+```
+
+There are 627 data points detected as outliers by boxplot in the avg_glucose_level variable.
+
+```{r}
+bmiBoxplot <- boxplot(strokeData$bmi, main = 'bmi Boxplot')
+paste(length(bmiBoxplot$out))
+```
+
+There are 110 data points detected as outliers by boxplot in the bmi variable.
+
+Hereby, I also check the normality of all variables
+```{r}
+hist.data.frame(strokeData)
+```
+
+From the output above, only bmi variables is roughly bell-shaped
+
+Next, I check to see whether there is any missing data in this dataset.
+```{r}
+#check missing value
+sapply(strokeData, function(x)sum(is.na(x)))
+```
+
+The bmi variable has 201 missing values, which was discovered above.
+
+
+
+__Explaination of my findings:__
+
+Utilizing eda, I may infer that my findings are:
+
+1. This data is stroke data which contains 5110 instances and 12 attributes. Those attributes are `id`, `gender`, `age`,`hypertension`, `heart_disease`, `ever_married`, `work_type`, `Residence_type`, `avg_glucose_level`,`bmi`, `smoking_status`, and 'stroke'.
+
+2. To predict what factors influence a person's stroke, I will utilize the stroke variable as the dependent variable.
+
+3. There are more female than male in the data set.
+
+4. Stroke are becoming more common among female than male
+
+5. A person's type of residence has no bearing on whether or not they have a stroke.
+
+6. People who have been married are more likely than those who have not to suffer a stroke.
+
+7. People with hypertension suffer fewer strokes than those who do not.
+
+8. People with heart disease suffer fewer strokes than those who do not.
+
+9. The majority of patients with stroke work in the government sector, private, or are self-employed.
+
+10. People who have never smoked or who formerly smoked have a greater stroke risk than active smokers. However, we must keep in mind that the majority of the data, which are represented by unknown categories, do not contain a clear record of the patients' smoking status. As a result, before we begin modeling, we must process the categories in the smoking status variable.
+
+11. A person's risk of having a stroke increases with age.
+
+12. There is no clear relation between average glucose levels and stroke risk. High glucose levels of more than 180-200mg/dL, on the other hand, can produce diabetes, which can lead to a stroke. Diabetics are 1.5 times more likely to suffer a stroke.
+
+13. Stroke is more likely happen to people with a BMI of 20 to 40.
+
+14. We need to handle the 201 missing values in the bmi variable before we begin modeling.
+
+
+As we can see from Eda, there are attributes that we need to fix. The handling will be done in the data preparation section below.
+
+##### **DATA-PREPROCESSING **
+
+The first thing I do is removing the 'id' column because it contains as many unique values as there are data points and its useless for predicting whether someone would have a stroke or not.
+ 
+I handle missing values and unusual values in two ways at this data preparation stage: the first is to delete the missing and unusual value, and the second is to replace the missing and unusual value. I tried these two ways to better compare how to handle missing and unusual values in this data which method is better, as the model will later prove.
+
+Missing and unusual values to be handled are 'other' levels in gender attributes, 'unknown' levels in smoking status attributes, and missing values in bmi attributes. I handled 'other' levels in gender attribute since there is only 1 row of Other in column gender. I handled the level of 'unknown' in smoking status because "unknown" in smoking status indicates that the information is not available to the patient and the number of unknowns themselves are quite large. And I handle the bmi attribute's missing value such that it is not biased
+
+**FIRST WAY TO HANDLE MISSING AND UNUSUAL VALUE:**
+In the first method here, I remove 'other' levels in gender attributes, 'unknown' levels in smoking status attributes, and any rows having missing values in bmi attributes.
+```{r}
+#Put the original data into a new variable that will be altered.
+UpdateStrokeDataDropNA = strokeData
+
+#Drop 'id' columns as i said before that id columns is useless
+UpdateStrokeDataDropNA <- subset(UpdateStrokeDataDropNA, select = c("gender","age","hypertension","heart_disease","ever_married","work_type","Residence_type","avg_glucose_level","bmi","smoking_status","stroke"))
+```
+
+```{r}
+#check missing value
+sapply(UpdateStrokeDataDropNA, function(x)sum(is.na(x)))
+```
+
+```{r}
+#Drop 'Unknown' levels at smoking_status attribute
+UpdateStrokeDataDropNA <- UpdateStrokeDataDropNA %>% filter(smoking_status!='Unknown')%>%droplevels()
+#Drop 'Other' levels at gender attribute
+UpdateStrokeDataDropNA <- UpdateStrokeDataDropNA %>% filter(gender!='Other')%>%droplevels()
+#check the missing value again
+sapply(UpdateStrokeDataDropNA, function(x)sum(is.na(x)))
+```
+
+```{r}
+#Drop all data rows containing missing value
+UpdateStrokeDataDroppedNA = UpdateStrokeDataDropNA
+UpdateStrokeDataDroppedNA = na.omit(UpdateStrokeDataDroppedNA)
+#check whether missing value has successfully dropped or not
+sapply(UpdateStrokeDataDroppedNA, function(x)sum(is.na(x)))
+```
+
+After handling missing values and unusual values by the first method, which is dropping them out, to see which features are most important to use to predict a person's stroke or not, I look at the correlation matrix here.
+```{r}
+UpdateStrokeDataDroppedNACorrelation = UpdateStrokeDataDroppedNA
+UpdateStrokeDataDroppedNACorrelation$gender = as.numeric(UpdateStrokeDataDroppedNACorrelation$gender)
+UpdateStrokeDataDroppedNACorrelation$hypertension = as.numeric(UpdateStrokeDataDroppedNACorrelation$hypertension)
+UpdateStrokeDataDroppedNACorrelation$heart_disease = as.numeric(UpdateStrokeDataDroppedNACorrelation$heart_disease)
+UpdateStrokeDataDroppedNACorrelation$work_type = as.numeric(UpdateStrokeDataDroppedNACorrelation$work_type)
+UpdateStrokeDataDroppedNACorrelation$ever_married = as.numeric(UpdateStrokeDataDroppedNACorrelation$ever_married)
+UpdateStrokeDataDroppedNACorrelation$Residence_type = as.numeric(UpdateStrokeDataDroppedNACorrelation$Residence_type)
+UpdateStrokeDataDroppedNACorrelation$smoking_status = as.numeric(UpdateStrokeDataDroppedNACorrelation$smoking_status)
+UpdateStrokeDataDroppedNACorrelation$stroke = as.numeric(UpdateStrokeDataDroppedNACorrelation$stroke)
+UpdateStrokeDataDroppedNACorrelation$work_type = as.numeric(UpdateStrokeDataDroppedNACorrelation$work_type)
+
+UpdateStrokeDataDroppedNACorrelation.quant = UpdateStrokeDataDroppedNACorrelation 
+UpdateStrokeDataDroppedNACorrelation.cor = round(cor(UpdateStrokeDataDroppedNACorrelation.quant),2)
+ggplot(data = reshape2::melt(UpdateStrokeDataDroppedNACorrelation.cor),aes(x=Var1, y=Var2, fill=value)) + geom_tile() +  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson Corr") + geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) + theme(axis.text.x = element_text(angle = 30))
+```
+
+From the output above, age, hypertension, heart disease, and average glucose level are the most important features for predicting stroke because they have the highest positive correlation to the dependent variable.
+
+**SECOND WAY TO HANDLE MISSING AND UNUSUAL VALUE:**
+Next, I used the second method to deal with missing values and unusual values, namely by replacing the missing values and unusual values. I removed the other levels on the gender attribute, replaced the unknown levels in the smoking status attribute with the most frequent category, which is 'never smoked,' and replaced the missing value in the bmi's attribute with its mean.
+```{r}
+#Put the original data into a new variable that will be altered.
+UpdateStrokeDataReplaceNA = strokeData
+
+#Drop 'id' columns as i said before that id columns is useless
+UpdateStrokeDataReplaceNA <- subset(UpdateStrokeDataReplaceNA, select = c("gender","age","hypertension","heart_disease","ever_married","work_type","Residence_type","avg_glucose_level","bmi","smoking_status","stroke"))
+
+#replace missing value in bmi attribute with its mean
+UpdateStrokeDataReplaceNA$bmi[is.na(UpdateStrokeDataReplaceNA$bmi)] <- mean(UpdateStrokeDataReplaceNA$bmi, na.rm = T)
+
+#replace the unknown with the most frequent category, which is ‘never smoked’
+UpdateStrokeDataReplaceNA <- UpdateStrokeDataReplaceNA %>% mutate(smoking_status = replace(smoking_status, smoking_status == "Unknown", "never smoked"))
+
+#buang levels 'Other' pada atribut gender
+UpdateStrokeDataReplaceNA <- UpdateStrokeDataReplaceNA %>% filter(gender!='Other')%>%droplevels()
+
+#check whether missing and unsual value has successfully replaced or not
+sapply(UpdateStrokeDataReplaceNA, function(x)sum(is.na(x)))
+```
+
+After handling missing values using the replace approach, I look at the correlation matrix to evaluate which features are most important to utilize to predict a person's stroke or not.
+```{r}
+UpdateStrokeDataReplaceNACorrelation = UpdateStrokeDataReplaceNA
+UpdateStrokeDataReplaceNACorrelation$gender = as.numeric(UpdateStrokeDataReplaceNACorrelation$gender)
+UpdateStrokeDataReplaceNACorrelation$hypertension = as.numeric(UpdateStrokeDataReplaceNACorrelation$hypertension)
+UpdateStrokeDataReplaceNACorrelation$heart_disease = as.numeric(UpdateStrokeDataReplaceNACorrelation$heart_disease)
+UpdateStrokeDataReplaceNACorrelation$work_type = as.numeric(UpdateStrokeDataReplaceNACorrelation$work_type)
+UpdateStrokeDataReplaceNACorrelation$ever_married = as.numeric(UpdateStrokeDataReplaceNACorrelation$ever_married)
+UpdateStrokeDataReplaceNACorrelation$Residence_type = as.numeric(UpdateStrokeDataReplaceNACorrelation$Residence_type)
+UpdateStrokeDataReplaceNACorrelation$smoking_status = as.numeric(UpdateStrokeDataReplaceNACorrelation$smoking_status)
+UpdateStrokeDataReplaceNACorrelation$stroke = as.numeric(UpdateStrokeDataReplaceNACorrelation$stroke)
+UpdateStrokeDataReplaceNACorrelation$work_type = as.numeric(UpdateStrokeDataReplaceNACorrelation$work_type)
+
+UpdateStrokeDataReplaceNACorrelation.quant = UpdateStrokeDataReplaceNACorrelation
+UpdateStrokeDataReplaceNACorrelation.cor = round(cor(UpdateStrokeDataReplaceNACorrelation.quant),2)
+ggplot(data = reshape2::melt(UpdateStrokeDataReplaceNACorrelation.cor),aes(x=Var1, y=Var2, fill=value)) + geom_tile() +  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson Corr") + geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) + theme(axis.text.x = element_text(angle = 30))
+```
+
+Same as before, from the correlation matrix above, it can be seen that age, hypertension, heart disease, and average glucose levels are the most significant factors in predicting stroke because they have the highest positive correlation to the dependent variable.
+
+#### **DATA SPLITTING**
+I split the data to build the model. I split the data into 70% of training data and 30% of testing data.
+```{r}
+#set random set.seed
+set.seed(589)
+
+#for data in which the missing value has been removed, create training data set 70% for building model and testing set 30% for model evaluation 
+trainingIndex = createDataPartition(UpdateStrokeDataDroppedNA$stroke,p=0.7,list=FALSE)
+testing_set = UpdateStrokeDataDroppedNA[-trainingIndex, ]
+training_set = UpdateStrokeDataDroppedNA[trainingIndex, ]
+cat("Testing Set Dimention data  : ",dim(testing_set),"\n")
+cat("Training Set Dimention data : ",dim(training_set))
+```
+
+```{r}
+#for data in which the missing value has been replaced, create training data set 70% for building model and testing set 30% for model evaluation 
+trainingIndexReplacedNA = createDataPartition(UpdateStrokeDataReplaceNA$stroke,p=0.7,list=FALSE)
+
+testing_set_ReplacedNA = UpdateStrokeDataReplaceNA[-trainingIndexReplacedNA, ]
+training_set_ReplacedNA = UpdateStrokeDataReplaceNA[trainingIndexReplacedNA, ]
+cat("Testing Set Dimention data  : ",dim(testing_set_ReplacedNA),"\n")
+cat("Training Set Dimention data : ",dim(training_set_ReplacedNA))
+```
+
+__The most important features in my dataset:__
+
+Age, hypertension, heart disease, and average glucose level are the most important features, because they have a high positive correlation to the stroke variable when compared to other features.
+
+The features that I will use to predict whether someone has a stroke or not are the attributes of gender, age, hypertension, heart_disease, ever_married, work_type, residence_type, avg_glucose_level, bmi, and smoking_status.
+
+
+
+##### **MODELLING WITH LOGISTIC REGRESSION**
+
+```{r}
+#build function to get the accuracy of each model based on the threshold
+getAccuracy <- function(predictionProbability, threshold, expected) {
+  predictedVal = ifelse(predictionProbability > threshold,'Yes',"No")
+  misclassificationError <- mean(predictedVal != expected)
+  accuracy =  1-misclassificationError
+  
+  return (accuracy)
+}
+
+#build modellingFunction for modelling -> it contains a summary of the model itself, the auc value in the testing and training set, the accuracy in the training and testing set when the threshold is 0.5 (default threshold), the confusion matrix when the threshold is 0.5 (default threshold) and when the threshold is calculated using gmean, and the model accuracy when using gmean as the threshold
+modellingFunction <- function(name,formula,predictors,training_set, testing_set,color){
+  model = glm(formula,family = binomial(link = "logit"), data = training_set)
+  print(name)
+  print(summary(model))
+  logisticPrediction <- predict(model,newdata = subset(testing_set, select = predictors), type ="response")
+  rocrEvaluation <- prediction(logisticPrediction, testing_set$stroke)
+  logisticPredictionTraining <- predict(model,newdata = subset(training_set, select = predictors), type ="response")
+  rocrEvaluationTraining <- prediction(logisticPredictionTraining, training_set$stroke)
+  
+  aucValue <- performance(rocrEvaluation, measure = "auc")
+  aucValue <- aucValue@y.values[[1]]
+  aucValueTraining <- performance(rocrEvaluationTraining, measure = "auc")
+  aucValueTraining <- aucValueTraining@y.values[[1]]
+  
+  accuracy = getAccuracy(logisticPrediction, 0.5, testing_set$stroke)
+  accuracyTraining =  accuracy = getAccuracy(logisticPredictionTraining, 0.5, training_set$stroke)
+  
+  
+  roc_empirical <- rocit(score = logisticPrediction, class = testing_set$stroke) 
+  
+  predictedDefault = ifelse(logisticPrediction > 0.5,'Yes',"No")
+  cmDefault = confusionMatrix(data=as.factor(predictedDefault), reference=testing_set$stroke, positive = "Yes")
+  
+  
+  gmean = sqrt(roc_empirical$TPR * (1-roc_empirical$FPR))
+  optimalThreshold = roc_empirical$Cutoff[which.max(gmean)]
+  predictedGmean = ifelse(logisticPrediction > optimalThreshold,'Yes',"No")
+  cmGmean = confusionMatrix(data=as.factor(predictedGmean), reference=testing_set$stroke, positive = "Yes")
+  
+  accuracyGmean =  getAccuracy(logisticPrediction, optimalThreshold, testing_set$stroke)
+  
+  cat(sprintf("CONFUSION MATRIX WITH THRESHOLD %.1f\n",0.5))
+  cat("-------------------------------------------\n")
+  print(cmDefault)
+  cat("===========================================\n")
+  cat(sprintf("CONFUSION MATRIX WITH THRESHOLD %f\n",optimalThreshold))
+  cat("-------------------------------------------\n")
+  print(cmGmean)
+  cat("===========================================\n")
+  cat(sprintf("%s AUC Testing: %f\n", name,aucValue))
+  cat(sprintf("%s AUC Training: %f\n", name,aucValueTraining))
+  cat(sprintf("%s Accuracy Testing with threshold %f: %f\n", name,optimalThreshold,accuracyGmean))
+  cat(sprintf("%s Accuracy Testing with threshold %.1f: %f\n", name,0.5,accuracy))
+  cat(sprintf("%s Accuracy Training with threshold %.1f: %f\n", name,0.5,accuracyTraining))
+  
+  
+  return (list(
+    name=name,
+    model=model,
+    roc=rocrEvaluation,
+    predVal=logisticPrediction,
+    auc=aucValue,
+    sensitivityDefault=cmDefault$byClass[2],
+    specificityDefault=cmDefault$byClass[1],
+    sensitivityGmean=cmGmean$byClass[2],
+    specificityGmean=cmGmean$byClass[1],
+    color=color
+  ))
+}
+
+#build function to compare auc, specitifity and sensitivity of each model
+summarizeModelMetric <- function(models) {
+  modelsSummary <- data.frame(matrix(ncol = 3, nrow = 0))
+  colnames(modelsSummary) <-c("AUC", "Specitifity", "Sensitivity")
+  
+  modelsSummaryRowNames = list()
+  idx = 0
+  for(model in models) {
+    modelsSummary[nrow(modelsSummary) + 1,] <- c(
+      AUC=model$auc,Sensitivity=model$sensitivityGmean,Specificity=model$specificityGmean
+    )
+    modelsSummaryRowNames = append(modelsSummaryRowNames,model$name)
+  }
+  
+  rownames(modelsSummary)<-modelsSummaryRowNames
+  
+  for(model in models) {
+    if (idx == 0) {
+      plot(performance(model$roc, measure = "tpr", x.measure = "fpr"),col=model$color)
+    } else {
+      plot(performance(model$roc, measure = "tpr", x.measure = "fpr"),col=model$color,add=TRUE)
+    }
+    idx = idx + 1
+  }
+  
+  return (modelsSummary)
+}
+
+```
+Because the data we have is not evenly distributed between the number of strokes and those who do not have a stroke (imbalanced data). For example, with this data, the proportion of individuals who don't have a stroke is 95%, so if my model then answers that everyone doesn't have a stroke, the accuracy of my model is 95%, which is not true, determining whether or not a model is good cannot be calculated using accuracy alone, and other metrics are required to evaluate the model's performance. 
+
+So, when creating the model, I compared the confusion matrix,sensitivity, specitifity, and AUC value of each model.
+
+Logistic regression outputs numerical, but here we want to predict categorical so a threshold is needed to convert numerical to categorical. Default threshold is usually 0.5, but the threshold could be adjusted based on the data and the problem that we want to solve. One of the option to calculate the threshold is using G-Mean.
+
+G-Mean is an imbalanced classification measure that, when optimized, seeks a balance between sensitivity and specificity. The formula for G-Mean is `sqrt(Sensitivity * Specificity)`. In order to determine the best G-mean value,  all threshold between 0 until 1 are tried and for each threshold the G-mean value is calculated. The best threshold is the one that has the highest G-mean.
+
+Here I create my first model. I try to model the dependent variable with all predictor variables using data in which the missing value has been removed
+```{r}
+model1 <- modellingFunction("model1 = stroke~.", stroke ~ ., c("age", "hypertension","avg_glucose_level","gender","heart_disease","work_type","Residence_type","bmi","smoking_status","ever_married"), training_set, testing_set,'red')
+```
+
+By looking at the signif code, I create my second model. I try to model the dependent variable with age, avg_glucose_level, and hypertension as the predictors using data in which the missing value has been removed
+```{r}
+model2 <- modellingFunction("model2 = stroke~age+avg_glucose_level+hypertension", stroke ~ age + avg_glucose_level + hypertension, c("age", "avg_glucose_level","hypertension"), training_set, testing_set,'blue')
+```
+
+Then I also create my third model. I try to model the dependent variable with only age and avg_glucose_level variables as the predictors using data in which the missing value has been removed
+```{r}
+model3 <- modellingFunction("model3 = stroke~age+avg_glucose_level", stroke ~ age + avg_glucose_level , c("age", "avg_glucose_level"), training_set, testing_set,'green')
+```
+
+Next I create my first model using data in which the missing value has been replaced, namely model4. So, below I try to model the dependent variable with all predictor variables using data in which the missing value has been replaced.
+```{r}
+model4 <- modellingFunction("model4 = stroke~.", stroke ~ ., c("age", "hypertension","avg_glucose_level","gender","heart_disease","work_type","Residence_type","bmi","smoking_status","ever_married"), training_set_ReplacedNA, testing_set_ReplacedNA,'pink')
+```
+
+Afterward, I create my fifth model using data in which the missing value has been replaced, namely model5. In model5, I try to model the dependent variable with age, avg_glucose_level, hypertension and heart_disease variables as the predictors using data in which the missing value has been replaced.
+```{r}
+model5 <- modellingFunction("model5 = stroke~age+avg_glucose_level+hypertension+heart_disease", stroke ~ age + avg_glucose_level + hypertension + heart_disease, c("age", "avg_glucose_level","hypertension","heart_disease"), training_set_ReplacedNA, testing_set_ReplacedNA,'yellow')
+```
+
+By looking at the signif code, I create my sixth model using data in which the missing value has been replaced, namely model6. In model6, I try to model the dependent variable with age and avg_glucose_level variables as the predictors using data in which the missing value has been replaced.
+```{r}
+model6 <- modellingFunction("model6 = stroke~age+avg_glucose_level", stroke ~ age + avg_glucose_level , c("age", "avg_glucose_level"), training_set_ReplacedNA, testing_set_ReplacedNA,'brown')
+```
+
+Lastly, by looking at the signif code from the model6, I create my last model using data in which the missing value has been replaced, namely model7. In model7, I try to model the dependent variable with age variable only as the predictor using data in which the missing value has been replaced.
+```{r}
+model7 <- modellingFunction("model7 = stroke~age", stroke ~ age  , c("age"), training_set_ReplacedNA, testing_set_ReplacedNA,'purple')
+```
+
+It is proven from each model that the 0.5 threshold cannot predict this data (imbalanced data) correctly, it can be seen from the confusion matrix of each model when using the 0.5 threshold that the result is poor, so the Gmean threshold must be applied.
+
+After constructing the seven models described above, I use the AUC, specificity, and sensitivity of each model to determine which model is the best.
+```{r}
+#Using my summary model function to compare the auc, specificity, and sensitivity values between each model
+summarizeModelMetric(list(model1,model2,model3,model4,model5,model6,model7))
+```
+
+
+Explanation:
+
+- AUC : AUC is a classification performance statistic with variable threshold values. AUC represents the degree or amount of separability. It measures how well the model can detect between classes. AUC close to one indicates a high level of separability in a good model. Similarly, the greater the AUC, the better the model distinguishes between people who have the condition and those who do not.
+
+- Sensitivity: the ability of a model to correctly identify patients with a disease.
+
+- Specificity: the ability of a model to correctly identify people without the disease.
+
+- True positive: the person has the disease and predicted positive.
+
+- True negative: the person does not have the disease and predicted negative.
+
+- False positive: the person does not have the disease and predicted positive.
+
+- False negative: the person has the disease and predicted negative
+
+In this case false negative is important because it is more severe if someone is predicted to not having a stroke but actually he/she is having one. The person might die or miss the treatment. Thus allow false negative is better.
+
+If we desire a low false negative, we must increase the sensitivity (sensitivity = true positive/(true positive + false negative)). If the specificity is low, it indicates that the false positive is high.
+
+In order to minimize the possibility of predicting people who don't have a stroke even though they actually have a stroke, the sensitivity must be large. Small specificity will predict more people who have a stroke even though they didn't actually have a stroke. We, as humans, are more tolerable to be predicted that we have a stroke even though we don't actually have it rather than being predicted that we don't have a stroke even though we actually have a stroke.
+
+As a result, model 6 with age and glucose level predictors is the best model for predicting stroke or not, because it has the greatest sensitivity value among other models and the specificity is not too low. The AUC value is likewise high, close to one, indicating that model 6 is quite good at predicting whether or not someone will have a stroke. Model 6 has an AUC value of 0.86, a specificity value of 0.72 and a sensitivity of 0.86. 
+
+##### **LOGISTIC REGRESSION'S BEST MODEL INTERPRETATION & EVALUATION**
+So, here is my final model summary and roc curve
+```{r}
+FinalModel <- modellingFunction("Final Model = stroke~age+avg_glucose_level", stroke ~ age + avg_glucose_level , c("age", "avg_glucose_level"), training_set_ReplacedNA, testing_set_ReplacedNA,'brown')
+plot(performance(FinalModel$roc, measure = "tpr", x.measure = "fpr"))
+```
+
+__Explanation of Model:__
+
+My final model's accuracy using the default threshold(0.5) is around 95%. However, because based on the confusion matrix, the prediction results with a default threshold of 0.5 is poor because the model predict all of the data not having stroke, So, I use the one with the gmean threshold to predict. Then, My final model's accuracy using the gmean threshold is around 72%. In my final model, the AUC value in the testing set is around 0.86, whereas the AUC value in the training set is approximately 0.83. The difference between these two AUC values is not far off, and the AUC value in this model is fairly high, near to 1, indicating that it is quite good at predicting. According to the plot, this model's ROC curve is also fairly good.
+
+The equation of the line for my final model is:
+```
+ln[stroke/(1-stroke)] = -7.360138 + age(0.070917) + avg_glucose_level(0.003155)
+```
+
+So, based on this data and the model that I created and picked, model6, the probability of having a stroke is determined by a person's age and glucose levels.The older a person becomes, the more likely he or she will have a stroke. Similarly, a person's average glucose level. The higher a person's average glucose level, the greater the probability of getting a stroke. Someone with high glucose levels is more likely to develop diabetes, which can cause narrowing of blood vessel walls and even total blockage, causing blood flow to the brain to halt and a stroke to occur.
+
+
+#### **MODELLING WITH DECISION TREE**
+
+```{r}
+#split the data into 50% of training and 50% of testing from the data which missing value has dropped
+set.seed(1)
+trainingIndexForDecisionTree = createDataPartition(UpdateStrokeDataDroppedNA$stroke,p=0.5,list=FALSE)
+
+testing_set_for_DT = UpdateStrokeDataDroppedNA[-trainingIndexForDecisionTree, ]
+training_set_for_DT = UpdateStrokeDataDroppedNA[trainingIndexForDecisionTree, ]
+cat("Testing Set Dimention data  : ",dim(testing_set_for_DT),"\n")
+cat("Training Set Dimention data : ",dim(training_set_for_DT))
+```
+
+```{r}
+#build the decision tree model using rpart function
+DecisionTreeModel <- rpart(stroke~.,training_set_for_DT, method = "class")
+DecisionTreeModel
+```
+
+To make the decision tree easier to understand, I visualized it below
+```{r}
+#plot the decision tree model using rpart.plot function
+rpart.plot(DecisionTreeModel)
+```
+
+From the plot of the decision tree model above, I can conclude:
+
+1. A stroke does not occur in those under the age of 68.
+
+2. People over the age of 68 with an average glucose level less than 220 do not suffer a stroke.
+
+3. People over the age of 68 with an average glucose level above 220 and self-employed jobs are unlikely to suffer a stroke.
+
+4. People over the age of 68 with an average glucose level more than 220, a non-self-employed employment type, a BMI less than 34, and an avg glucose level higher than 227 are less likely to have a stroke.
+
+5. People who are above the age of 68, have an average glucose level of more than 200, are not self-employed, and have a BMI of more than 34 are at risk of stroke.
+
+6. People who were above the age of 68, had an average glucose level of more than 200, were not self-employed, had a BMI less than 34, and an average glucose level of less than 227 are at risk of stroke.
+
+```{r}
+predictionDTree <- predict(DecisionTreeModel, testing_set_for_DT, type = "class")
+confusionMatrix <- table(predictionDTree, testing_set_for_DT$stroke)
+confusionMatrix
+```
+
+By looking at the confusion matrix, this model is not recommended because it predicts that more (false negative)people who should have suffered a stroke are predicted not to suffer from a stroke than (false positive)predicting people who do not suffer from a stroke are predicted to have a stroke.
+
+```{r}
+#accuracy
+sum(diag(confusionMatrix))/sum(confusionMatrix)
+
+#error rate (missclassification accuracy)
+1-sum(diag(confusionMatrix))/sum(confusionMatrix)
+```
+
+Based on the accuracy findings above, the decision tree model has an accuracy of 94%, but actually the decision tree model is less effective for classifying imbalanced data.
+
+
+
