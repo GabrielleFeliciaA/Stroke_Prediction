@@ -53,12 +53,12 @@ Due to the imbalance in the dataset, where the majority class significantly outw
 
 In the modelling process, using the logistic regression algorithm, several models are created to produce the best model. An explanation of each model is as follows:
 - `Model 1`: Model the dependent variable with all predictor variables using data in which the missing value has been removed
-- `Model 2`: Model the dependent variable with age, avg_glucose_level, and hypertension as the predictors using data in which the missing value has been removed
-- `Model 3`: Model the dependent variable with only age and avg_glucose_level variables as the predictors using data in which the missing value has been removed
+- `Model 2`: Model the dependent variable with `age`, `avg_glucose_level`, and `hypertension` as the predictors using data in which the missing value has been removed
+- `Model 3`: Model the dependent variable with only `age` and `avg_glucose_level` variables as the predictors using data in which the missing value has been removed
 - `Model 4`: Model the dependent variable with all predictor variables using data in which the missing value has been replaced
-- `Model 5`: Model the dependent variable with age, avg_glucose_level, hypertension and heart_disease variables as the predictors using data in which the missing value has been replaced
-- `Model 6`: Model the dependent variable with age and avg_glucose_level variables as the predictors using data in which the missing value has been replaced
-- `Model 7`: Model the dependent variable with age variable only as the predictor using data in which the missing value has been replaced
+- `Model 5`: Model the dependent variable with `age`, `avg_glucose_level`, `hypertension` and `heart_disease` variables as the predictors using data in which the missing value has been replaced
+- `Model 6`: Model the dependent variable with `age` and `avg_glucose_level` variables as the predictors using data in which the missing value has been replaced
+- `Model 7`: Model the dependent variable with `age` variable only as the predictor using data in which the missing value has been replaced
   
 ## Logistic Regression Best Model Evaluation & Conclusion
 `Model 6`, featuring age and glucose level predictors, emerges as the top-performing model for stroke prediction. It exhibits the highest sensitivity among all models while maintaining a respectable level of specificity. Moreover, it boasts a commendable AUC value, nearing one, underscoring its effectiveness in predicting stroke occurrences. Specifically, Model 6 achieves an AUC value of 0.86, a specificity score of 0.72, and a sensitivity of 0.86.
