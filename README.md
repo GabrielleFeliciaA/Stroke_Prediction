@@ -40,11 +40,11 @@ From the results of the Exploratory Data Analysis (EDA), several issues were ide
   
 - Handling missing values and unusual values in two ways: the first is to delete the missing and unusual value, and the second is to replace the missing and unusual value. I tried these two ways to better compare how to handle missing and unusual values in this data. Which method is better, as the model will later prove.
   
-Missing and unusual values to be handled are ‘other’ levels in gender attributes, ‘unknown’ levels in smoking status attributes, and missing values in `bmi` attributes. 
+    Missing and unusual values to be handled are ‘other’ levels in gender attributes, ‘unknown’ levels in smoking status attributes, and missing values in `bmi` attributes. 
 
-**FIRST WAY TO HANDLE MISSING AND UNUSUAL VALUE:** In the first method, I remove ‘other’ levels in gender attributes, ‘unknown’ levels in smoking status attributes, and any rows having missing values in bmi attributes.
+    **FIRST WAY TO HANDLE MISSING AND UNUSUAL VALUE:** In the first method, I remove ‘other’ levels in gender attributes, ‘unknown’ levels in smoking status attributes, and any rows having missing values in bmi       attributes.
 
-**SECOND WAY TO HANDLE MISSING AND UNUSUAL VALUE:** The second method, I tried to replace the missing values and unusual values. I removed the other levels on the gender attribute, replaced the unknown levels in the smoking status attribute with the most frequent category, which is ‘never smoked,’ and replaced the missing value in the bmi’s attribute with its mean.
+    **SECOND WAY TO HANDLE MISSING AND UNUSUAL VALUE:** The second method, I tried to replace the missing values and unusual values. I removed the other levels on the gender attribute, replaced the unknown           levels in the smoking status attribute with the most frequent category, which is ‘never smoked,’ and replaced the missing value in the bmi’s attribute with its mean.
 
 - Data Split: Split the data into 70% training data and 30% test data.
 
